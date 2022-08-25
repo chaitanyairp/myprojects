@@ -1,0 +1,70 @@
+Hive hbase integration:
+
+1. Ingest data using sqoop:
+sqoop import \
+--connect "jdbc:mysql://sandbox-hdp.hortonworks.com:3306/adventureworks" \
+--username root \
+--password hadoop \
+--table salesheader \
+--warehouse-dir /data/sqoop/imports \
+--driver com.mysql.jdbc.Driver
+
+sqoop import \
+--connect "jdbc:mysql://sandbox-hdp.hortonworks.com:3306/adventureworks" \
+--username root \
+--password hadoop \
+--table salesdetail \
+--split-by SalesOrderID \
+--warehouse-dir /data/sqoop/imports \
+--driver com.mysql.jdbc.Driver
+
+2. Create hive tables using sqoop
+sqoop create-hive-table \
+--connect "jdbc:mysql://sandbox-hdp.hortonworks.com:3306/adventureworks" \
+--username root \
+--password hadoop \
+--table salesheader \
+--hive-table salesheader \
+--fields-terminated-by ',' \
+--driver com.mysql.jdbc.Driver
+
+
+sqoop create-hive-table \
+--connect "jdbc:mysql://sandbox-hdp.hortonworks.com:3306/adventureworks" \
+--username root \
+--password hadoop \
+--table salesdetail \
+--hive-table salesdetail \
+--fields-terminated-by ',' \
+--driver com.mysql.jdbc.Driver
+
+
+3. Load data into hive tables:
+load data inpath '/data/sqoop/imports/salesdetail' into table salesdetail;
+
+load data inpath '/data/sqoop/imports/salesheader' into table salesheader;
+
+4. Create a new hive hbase table:
+
+create table orders(
+salesOrderid int,
+orderDate date,
+totalDue double,
+salesOrderDetailId int,
+orderQty int,
+productId int
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler' WITH
+SERDEPROPERTIES("hbase.columns.mapping"=":key, header:orderDate,header:totalDue,detail:salesOrderDetailId,detail:orderQty,detail:productId")
+TBLPROPERTIES("hbase.table.name"="orders");
+
+
+insert overwrite table orders 
+select
+h.salesOrderId,
+h.orderDate,
+h.totalDue,
+d.salesOrderDetailId,
+d.orderQty,
+d.productId
+from default.salesheader h inner join default.salesdetail d on h.salesOrderId = d.salesOrderId;
